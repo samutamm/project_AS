@@ -46,19 +46,32 @@ class SNIP:
         loss = criterion(output, y)
         loss.backward()
 
+        g, gradient_mapping= self.get_all_gradients()
+        self.S = np.abs(g) / np.sum(np.abs(g))
+        order = np.argsort(self.S)
+        order = order[::-1]
+        threshold = self.S[order[K]]
+
+        C = np.ones(g.shape[0])
+        C[self.S <= threshold] = 0
+
+        return C
+
+    def get_all_gradients(self):
+        params_id_mapping = {}
+        params = []
+        last_index = 0
         for i, param in enumerate(self.model.parameters()):
             if param.requires_grad:
-                self.S[i] = torch.abs(param.grad) / torch.sum(torch.abs(param.grad))
-                s_values = self.S[i].numpy().flatten()
-                np.sort(s_values)
-                s_values = s_values[::-1]
-                s_k = s_values[K]
+                dimensions = list(param.grad.shape)
+                params_vector = param.grad.data.numpy().flatten()
+                param_indexes = np.arange(params_vector.shape[0])
+                params.append(params_vector)
+                for local_idx, _ in enumerate(param_indexes):
+                    current_idx = last_index + local_idx
+                    local_index_in_layer_i = np.unravel_index(local_idx, dimensions)
+                    params_id_mapping[current_idx] = (i, local_index_in_layer_i)
 
-                s_k_ = torch.ones(self.C[i].shape)
-                s_k_ = s_k_.new_full(self.C[i].shape, float(s_k))
+                last_index += params_vector.shape[0]
+        return np.concatenate(params), params_id_mapping
 
-                self.C[i][self.S[i] > s_k_] = 1
-
-        # TODO count Connection Sensivity
-        # TODO sort s and take top-k
-        return self.C
