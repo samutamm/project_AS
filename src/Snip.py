@@ -18,13 +18,7 @@ class SNIP:
 
         self.model.apply(weights_init_uniform) # algorithm line 1
 
-        for i, param in enumerate(self.model.parameters()):
-            if param.requires_grad:
-                self.C[i] = torch.zeros(param.shape)
-
-        self.S = self.C.copy()
-
-    def prune(self, criterion, data_loader, K):
+    def calculate_mask(self, criterion, data_loader, K):
         """
         Algorithm 1 SNIP: Single-shot Network Pruning based on Connection Sensitivity
         from the paper with corresponding name. https://openreview.net/pdf/3b4408062d47079caf01147df0e4321eb792f507.pdf
@@ -40,13 +34,13 @@ class SNIP:
         X, y = next(iter(data_loader))
 
         # maybe use the same optimiser than in normal learning process later
-        optimizer = torch.optim.SGD(self.model.parameters(), 0.1, momentum=0.9)
+        #optimizer = torch.optim.SGD(self.model.parameters(), 0.1, momentum=0.9)
 
         output = self.model(X)
         loss = criterion(output, y)
         loss.backward()
 
-        g, gradient_mapping= self.get_all_gradients()
+        g, gradient_mapping = self.get_all_gradients()
         self.S = np.abs(g) / np.sum(np.abs(g))
         order = np.argsort(self.S)
         order = order[::-1]
@@ -55,7 +49,9 @@ class SNIP:
         C = np.ones(g.shape[0])
         C[self.S <= threshold] = 0
 
-        return C
+        self.C = C
+        self.weight_mapping = gradient_mapping
+        return C, gradient_mapping
 
     def get_all_gradients(self):
         params_id_mapping = {}
@@ -75,3 +71,17 @@ class SNIP:
                 last_index += params_vector.shape[0]
         return np.concatenate(params), params_id_mapping
 
+    def prune_parameters(self):
+        """
+        This method uses precalculated mask (the variable C in Algorithm 1) to set some params to zero,
+        also known as pruning the model.
+        :return:
+        """
+        assert len(self.C) > 0, "Please call calculate_mask before this function."
+        state_dict = self.model.state_dict()
+        layers = list(state_dict.keys())
+        for i,c_value in enumerate(self.C):
+            (layer_i, idx_in_layer) = self.weight_mapping[i]
+            layer = state_dict[layers[layer_i]]
+            layer[idx_in_layer].data *= c_value
+        return state_dict
