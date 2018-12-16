@@ -7,7 +7,7 @@ import numpy as np
 
 def weights_init_uniform(m):
     if isinstance(m, nn.Conv2d):
-        torch.nn.init.xavier_uniform(m.weight.data)
+        torch.nn.init.xavier_uniform_(m.weight.data)
         #torch.nn.init.xavier_uniform(m.bias.data)
 
 class SNIP:
@@ -18,7 +18,7 @@ class SNIP:
 
         self.model.apply(weights_init_uniform) # algorithm line 1
 
-    def calculate_mask(self, criterion, data_loader, K):
+    def compute_mask(self, data_loader, K):
         """
         Algorithm 1 SNIP: Single-shot Network Pruning based on Connection Sensitivity
         from the paper with corresponding name. https://openreview.net/pdf/3b4408062d47079caf01147df0e4321eb792f507.pdf
@@ -33,9 +33,9 @@ class SNIP:
         """
         X, y = next(iter(data_loader))
 
-        # maybe use the same optimiser than in normal learning process later
-        #optimizer = torch.optim.SGD(self.model.parameters(), 0.1, momentum=0.9)
+        criterion = nn.CrossEntropyLoss()
 
+        # maybe use the same optimiser than in normal learning process later
         output = self.model(X)
         loss = criterion(output, y)
         loss.backward()
@@ -77,7 +77,7 @@ class SNIP:
         also known as pruning the model.
         :return:
         """
-        assert len(self.C) > 0, "Please call calculate_mask before this function."
+        assert len(self.C) > 0, "Please call compute_mask before this function."
         state_dict = self.model.state_dict()
         layers = list(state_dict.keys())
         for i,c_value in enumerate(self.C):
