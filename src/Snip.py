@@ -14,9 +14,27 @@ class SNIP:
 
     def __init__(self, model):
         self.model = model
-        self.C = {}
+        self.C_masks = {}
 
         self.model.apply(weights_init_uniform) # algorithm line 1
+
+    def reshape_mask_layer_by_layer(self, C, weight_mapping):
+        """
+        :param All values of C in one long vector:
+        :return: One C mask for each layer.
+        """
+        state_dict = self.model.state_dict()
+        layers = list(state_dict.keys())
+
+        layers_masks = {}
+        for layer in layers:
+            layers_masks[layer] = torch.zeros(state_dict[layer].shape)
+
+        for i, c_value in enumerate(C):
+            (layer_i, idx_in_layer) = weight_mapping[i]
+            layers_masks[layers[layer_i]][idx_in_layer] = c_value
+
+        return layers_masks
 
     def compute_mask(self, data_loader, K):
         """
@@ -49,11 +67,15 @@ class SNIP:
         C = np.ones(g.shape[0])
         C[self.S <= threshold] = 0
 
-        self.C = C
-        self.weight_mapping = gradient_mapping
-        return C, gradient_mapping
+        self.C_masks = self.reshape_mask_layer_by_layer(C, gradient_mapping)
+        return self.C_masks
+
 
     def get_all_gradients(self):
+        """
+        Iterate all layers and get the gradients of each layer.
+        :return:
+        """
         params_id_mapping = {}
         params = []
         last_index = 0
@@ -71,17 +93,25 @@ class SNIP:
                 last_index += params_vector.shape[0]
         return np.concatenate(params), params_id_mapping
 
-    def prune_parameters(self):
+
+    # Find a way to register masks
+    # https://discuss.pytorch.org/t/module-children-vs-module-modules/4551
+    def register_masks(self):
         """
-        This method uses precalculated mask (the variable C in Algorithm 1) to set some params to zero,
-        also known as pruning the model.
+        Registers masks to be computed after gradient.
         :return:
         """
-        assert len(self.C) > 0, "Please call compute_mask before this function."
+        assert len(self.C_masks) > 0, "Please call compute_mask before this function."
         state_dict = self.model.state_dict()
         layers = list(state_dict.keys())
-        for i,c_value in enumerate(self.C):
-            (layer_i, idx_in_layer) = self.weight_mapping[i]
-            layer = state_dict[layers[layer_i]]
-            layer[idx_in_layer].data *= c_value
-        return state_dict
+        hooks = []
+        for i,layer in enumerate(layers):
+            mask = self.C_masks[layer]
+
+            def backward_C_masking_hook(self, input, output):
+                import pdb; pdb.set_trace()
+
+            hook = state_dict[layer].register_backward_hook(backward_C_masking_hook)
+            hooks.append(hook)
+
+        return hooks
