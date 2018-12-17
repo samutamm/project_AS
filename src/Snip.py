@@ -13,10 +13,20 @@ def weights_init_uniform(m):
 class SNIP:
 
     def __init__(self, model):
+        """
+        :param model:
+        """
         self.model = model
         self.C_masks = {}
 
+
         self.model.apply(weights_init_uniform) # algorithm line 1
+
+    def get_total_param_number(self):
+        return sum([np.prod(list(param.data.shape)) for param in self.model.parameters() if param.requires_grad])
+
+    def get_nonzero_param_number(self):
+        return sum([torch.nonzero(param.data).shape[0] for param in self.model.parameters() if param.requires_grad])
 
     def reshape_mask_layer_by_layer(self, C, weight_mapping):
         """
@@ -28,7 +38,7 @@ class SNIP:
 
         layers_masks = {}
         for layer in layers:
-            layers_masks[layer] = torch.zeros(state_dict[layer].shape)
+            layers_masks[layer] = torch.zeros(state_dict[layer].shape).cuda()
 
         for i, c_value in enumerate(C):
             (layer_i, idx_in_layer) = weight_mapping[i]
@@ -43,12 +53,11 @@ class SNIP:
 
         This function implements only lines 1-5 of the algorithm.
 
-        :param loss_function: Loss function that is used later in learning to optimize given task.
-        :param training_X: learning examples for calculating Connection Sensivity (line 3)
-        :param training_y: labels for examples
-        :param K: number of non-zero weights to be returned in output C
+        :param K: number of non-zero weights to be garded in model
         :return: binary vector C where 1's are weights to be retained and 0's weights to drop
         """
+        self.K = K
+
         X, y = next(iter(data_loader))
 
         criterion = nn.CrossEntropyLoss()
@@ -91,6 +100,7 @@ class SNIP:
                     params_id_mapping[current_idx] = (i, local_index_in_layer_i)
 
                 last_index += params_vector.shape[0]
+        self.model.zero_grad()
         return np.concatenate(params), params_id_mapping
 
 
@@ -103,15 +113,18 @@ class SNIP:
         """
         assert len(self.C_masks) > 0, "Please call compute_mask before this function."
         state_dict = self.model.state_dict()
-        layers = list(state_dict.keys())
+        param_names = list(state_dict.keys())
         hooks = []
-        for i,layer in enumerate(layers):
-            mask = self.C_masks[layer]
+        for i,(param_name, param) in enumerate(self.model.named_parameters()):
+            if param.requires_grad and param_name in param_names:
+                assert param.data.shape == self.C_masks[param_name].shape
 
-            def backward_C_masking_hook(self, input, output):
-                import pdb; pdb.set_trace()
+                # Let's apply mask for initialized weights
+                param.data *= self.C_masks[param_name]
 
-            hook = state_dict[layer].register_backward_hook(backward_C_masking_hook)
-            hooks.append(hook)
+                # Let's register hook that is applied after gradient is computed
+                # --> this way zero weights stays zero
+                hook = param.register_hook(lambda grad, mask=self.C_masks[param_name]: grad * mask)
+                hooks.append(hook)
 
         return hooks
