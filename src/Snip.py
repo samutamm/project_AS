@@ -104,8 +104,7 @@ class SNIP:
         return np.concatenate(params), params_id_mapping
 
 
-    # Find a way to register masks
-    # https://discuss.pytorch.org/t/module-children-vs-module-modules/4551
+
     def register_masks(self):
         """
         Registers masks to be computed after gradient.
