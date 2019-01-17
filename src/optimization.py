@@ -14,7 +14,7 @@ from time import sleep
 
 def get_dataloaders(dataset, path):
     pruning_batch_size = 128
-    batch_size = 64
+    batch_size = 100
 
     data_transforms = transforms.Compose([
         transforms.ToTensor()
@@ -136,7 +136,6 @@ class MeanEvaluator:
             for hook in hooks:
                 hook.remove()
             nonzero_params = snip.get_nonzero_param_number()
-            print(nonzero_params)
             assert snip.K == nonzero_params
 
         return train_losses, test_losses, accuracys
