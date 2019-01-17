@@ -10,6 +10,8 @@ import torchvision.transforms as transforms
 from .tools import AverageMeter
 from .Snip import SNIP
 
+from time import sleep
+
 def get_dataloaders(dataset, path):
     pruning_batch_size = 128
     batch_size = 64
@@ -48,15 +50,8 @@ class MeanEvaluator:
         self.epochs = epochs
         self.pruning_data_loader, self.train_data_loader, self.test_data_loader = get_dataloaders(dataset, path)
 
-    def evaluate_baseline(self):
-        results = []
-        for i in range(self.eval_n):
-            model = self.model_class() # create new instance to reset the training
-            _, _, accuracys = self.train_model(model, None)
-            score = np.max(accuracys)
-            print("iteration : {}, score : {}".format(i, score))
-            results.append(score)
-        return np.mean(results)
+        self.sleep_between_iterations = True
+
 
     def create_pruning_model(self):
         prune_model = self.model_class()
@@ -66,19 +61,44 @@ class MeanEvaluator:
         snip.compute_mask(self.pruning_data_loader, K=K)
         return prune_model, snip
 
+    def snip_training(self):
+        prune_model, snip = self.create_pruning_model()  # create new instance to reset the training
+        _, test_losses, accuracys = self.train_model(prune_model, snip)
+        return test_losses, accuracys
+
+    def baseline_training(self):
+        model = self.model_class()  # create new instance to reset the training
+        _, test_losses, accuracys = self.train_model(model, None)
+        return test_losses, accuracys
+
+    def evaluate_baseline(self):
+        return self.repeat_training(self.baseline_training)
+
     def evaluate_pruned_model(self):
-        results = []
+        return self.repeat_training(self.snip_training)
+
+    def repeat_training(self, training_to_repeat):
+        accuracy_results = []
+        loss_results = []
         for i in range(self.eval_n):
-            prune_model, snip = self.create_pruning_model() # create new instance to reset the training
-            _, _, accuracys = self.train_model(prune_model, snip)
+            test_losses, accuracys = training_to_repeat()
             score = np.max(accuracys)
-            print("iteration : {}, score : {}".format(i, score))
-            results.append(score)
-        return np.mean(results)
+            min_loss = np.min(test_losses)
+            print("test : {}, score : {}, min test loss : {}".format(i, score, min_loss))
+            accuracy_results.append(score)
+            loss_results.append(min_loss)
+
+            if self.sleep_between_iterations:
+                sleep(1)
+
+        return np.mean(accuracy_results), np.mean(loss_results)
+
 
     def train_model(self, model, snip=None, epochs=20):
         criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters())
+        #optimizer = torch.optim.Adam(model.parameters())
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25000, gamma=0.1)
 
         model = model.cuda()
         criterion = criterion.cuda()
@@ -98,6 +118,7 @@ class MeanEvaluator:
                             model,
                             criterion,
                             snip_pruning=snip,
+                            scheduler=scheduler,
                             optimizer=optimizer,
                             PRINT_INTERVAL = -1)
             # Phase d'evaluation
@@ -120,7 +141,11 @@ class MeanEvaluator:
 
         return train_losses, test_losses, accuracys
 
-def epoch(data, model, criterion, snip_pruning=None,  optimizer=None, PRINT_INTERVAL=100):
+def epoch(data, model, criterion, preprocessing = lambda x : x,
+                        snip_pruning=None,
+                        scheduler = None,
+                        optimizer=None,
+                        PRINT_INTERVAL=100):
     """
     Fait une passe (appelée epoch en anglais) sur les données `data` avec le
     modèle `model`. Evalue `criterion` comme loss.
@@ -142,6 +167,7 @@ def epoch(data, model, criterion, snip_pruning=None,  optimizer=None, PRINT_INTE
     tic = time.time()
     for i, (input, target) in enumerate(data):
 
+        input = preprocessing(input)
         input = input.cuda()
         target = target.cuda()
 
@@ -154,6 +180,7 @@ def epoch(data, model, criterion, snip_pruning=None,  optimizer=None, PRINT_INTE
         # backward si on est en "train"
         if optimizer:
             #snip_pruning.prune_parameters()
+            scheduler.step();
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
