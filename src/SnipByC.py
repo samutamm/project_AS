@@ -61,11 +61,11 @@ class SNIP:
         X, y = next(iter(data_loader))
 
         # create C_var
-        C_var = torch.Tensor(1, self.get_total_param_number())
-        torch.nn.init.xavier_uniform_(C_var)
+        C_var = torch.ones(1, self.get_total_param_number())
+        #torch.nn.init.xavier_uniform_(C_var)
         C_var.requires_grad=True
 
-        optimizer = torch.optim.SGD({C_var}, lr=0.1, momentum=0.9)
+        #optimizer = torch.optim.SGD({self.model.parameters(), C_var}, lr=0.1, momentum=0.9)
 
         # Register C_var
         c_index_start = 0
@@ -88,7 +88,7 @@ class SNIP:
         output = self.model(X)
         loss = criterion(output, y)
         loss.backward()
-        optimizer.step()
+        #optimizer.step()
 
         g, gradient_mapping = self.get_all_gradients(C_var)
         self.S = np.abs(g) / np.sum(np.abs(g))
