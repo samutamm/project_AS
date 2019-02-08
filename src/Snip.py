@@ -1,4 +1,3 @@
-
 import torch
 from torch import nn
 
@@ -8,7 +7,8 @@ import numpy as np
 def weights_init_uniform(m):
     if isinstance(m, nn.Conv2d):
         torch.nn.init.xavier_uniform_(m.weight.data)
-        #torch.nn.init.xavier_uniform(m.bias.data)
+        # torch.nn.init.xavier_uniform(m.bias.data)
+
 
 class SNIP:
 
@@ -19,8 +19,7 @@ class SNIP:
         self.model = model
         self.C_masks = {}
 
-
-        self.model.apply(weights_init_uniform) # algorithm line 1
+        self.model.apply(weights_init_uniform)  # algorithm line 1
 
     def get_total_param_number(self):
         return sum([np.prod(list(param.data.shape)) for param in self.model.parameters() if param.requires_grad])
@@ -79,7 +78,6 @@ class SNIP:
         self.C_masks = self.reshape_mask_layer_by_layer(C, gradient_mapping)
         return self.C_masks
 
-
     def get_all_gradients(self):
         """
         Iterate all layers and get the gradients of each layer.
@@ -103,8 +101,6 @@ class SNIP:
         self.model.zero_grad()
         return np.concatenate(params), params_id_mapping
 
-
-
     def register_masks(self):
         """
         Registers masks to be computed after gradient.
@@ -114,7 +110,7 @@ class SNIP:
         state_dict = self.model.state_dict()
         param_names = list(state_dict.keys())
         hooks = []
-        for i,(param_name, param) in enumerate(self.model.named_parameters()):
+        for i, (param_name, param) in enumerate(self.model.named_parameters()):
             if param.requires_grad and param_name in param_names:
                 assert param.data.shape == self.C_masks[param_name].shape
 
