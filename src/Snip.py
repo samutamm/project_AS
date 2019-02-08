@@ -123,3 +123,45 @@ class SNIP:
                 hooks.append(hook)
 
         return hooks
+
+
+
+from models.LeNet import LeNet300100, LeNet5Caffe
+from torchvision import datasets
+import torchvision.transforms as transforms
+
+
+if __name__ == '__main__':
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+    batch_size = 128
+    test_batch_size = 1000
+    lr = 0.01
+    momentum = 0.5
+    seed = 1
+    epochs = 10
+    #torch.manual_seed(seed)
+
+    #device = "cpu"
+    kwargs = {'num_workers': 1, 'pin_memory': True} if torch.cuda.is_available() else {}
+    train_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=True, download=True,
+                       transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                       ])),
+        batch_size=batch_size, shuffle=True, **kwargs)
+    test_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=False, transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+        ])),
+        batch_size=test_batch_size, shuffle=True, **kwargs)
+
+    X, y = next(iter(train_loader))
+
+    model = LeNet300100()
+    #list(model.parameters())
+    snip = SNIP(model)
+    snip.compute_mask(train_loader, 10)

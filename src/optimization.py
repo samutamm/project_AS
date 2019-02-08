@@ -8,8 +8,6 @@ import numpy as np
 import torchvision.transforms as transforms
 
 from .tools import AverageMeter
-from .Snip import SNIP
-
 from time import sleep
 
 def get_dataloaders(dataset, path):
@@ -179,7 +177,7 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
         # backward si on est en "train"
         if optimizer:
             #snip_pruning.prune_parameters()
-            scheduler.step();
+            #scheduler.step();
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
