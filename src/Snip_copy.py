@@ -3,8 +3,6 @@ from torch import nn
 from copy import deepcopy
 
 import numpy as np
-from src.cnn_mnist import *
-
 
 def weights_init_uniform(m):
     if isinstance(m, nn.Conv2d):

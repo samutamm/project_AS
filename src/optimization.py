@@ -7,8 +7,9 @@ import numpy as np
 
 import torchvision.transforms as transforms
 
-from .tools import AverageMeter
+from tools import AverageMeter
 from time import sleep
+from Snip_copy import SNIP
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -48,7 +49,8 @@ class MeanEvaluator:
         self.eval_n = eval_n
         self.pruning_ratio = pruning_ratio
         self.epochs = epochs
-        self.pruning_data_loader, self.train_data_loader, self.test_data_loader = get_dataloaders(dataset, path)
+        if dataset:
+            self.pruning_data_loader, self.train_data_loader, self.test_data_loader = get_dataloaders(dataset, path)
 
         self.sleep_between_iterations = True
 
@@ -94,10 +96,10 @@ class MeanEvaluator:
         return np.mean(accuracy_results), np.mean(loss_results)
 
 
-    def train_model(self, model, snip=None, epochs=10):
+    def train_model(self, model, snip=None):
         criterion = nn.CrossEntropyLoss()
         #optimizer = torch.optim.Adam(model.parameters())
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=0.0005)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25000, gamma=0.1)
 
         model = model.cuda()
@@ -178,8 +180,7 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
 
         # backward si on est en "train"
         if optimizer:
-            #snip_pruning.prune_parameters()
-            #scheduler.step();
+            scheduler.step()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -204,11 +205,12 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
                        "EVAL" if optimizer is None else "TRAIN", i, len(data), batch_time=avg_batch_time, loss=avg_loss,
                        top1=avg_acc))
 
-            # Affichage des infos sur l'epoch
-    print('\n===============> Total time {batch_time:d}s\t'
-              'Avg loss {loss.avg:.4f}\t'
-              'Avg Prec {top1.avg:5.2f} %\n'.format(
-               batch_time=int(avg_batch_time.sum), loss=avg_loss,
-               top1=avg_acc))
+    if PRINT_INTERVAL != -1:
+                # Affichage des infos sur l'epoch
+        print('\n===============> Total time {batch_time:d}s\t'
+                  'Avg loss {loss.avg:.4f}\t'
+                  'Avg Prec {top1.avg:5.2f} %\n'.format(
+                   batch_time=int(avg_batch_time.sum), loss=avg_loss,
+                   top1=avg_acc))
 
     return avg_acc, avg_loss

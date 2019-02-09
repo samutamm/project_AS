@@ -6,4 +6,4 @@ notebooks/data
 ./ipynb_checkpoints
 .ipynb_checkpoints
 examples/
-pytorch-cifar10/
+src/images/*
