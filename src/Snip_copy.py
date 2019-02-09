@@ -39,14 +39,13 @@ class SNIP:
 
         layers_masks = {}
         for layer in layers:
-            layers_masks[layer] = torch.zeros(state_dict[layer].shape)
+            layers_masks[layer] = torch.zeros(state_dict[layer].shape).cuda()
 
         for i, c_value in enumerate(C):
             (layer_i, idx_in_layer) = weight_mapping[i]
             layers_masks[layers[layer_i]][idx_in_layer] = c_value
 
         return layers_masks
-
 
     def compute_mask(self, data_loader, K):
         """
@@ -166,6 +165,7 @@ class SNIP:
 
         return hooks
 
+
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
@@ -179,7 +179,6 @@ def train(model, device, train_loader, optimizer, epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.item()))
-
 
 # if __name__ == '__main__':
 #     use_cuda = True if torch.cuda.is_available() else False
@@ -219,4 +218,3 @@ def train(model, device, train_loader, optimizer, epoch):
 #     sniped_model.compute_mask(X, y, K=10)
 #
 #     train_losses, test_losses, accuracys = train(prune_model, snip)
-

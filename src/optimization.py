@@ -10,6 +10,8 @@ import torchvision.transforms as transforms
 from .tools import AverageMeter
 from time import sleep
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 def get_dataloaders(dataset, path):
     pruning_batch_size = 128
     batch_size = 100
@@ -92,7 +94,7 @@ class MeanEvaluator:
         return np.mean(accuracy_results), np.mean(loss_results)
 
 
-    def train_model(self, model, snip=None, epochs=20):
+    def train_model(self, model, snip=None, epochs=10):
         criterion = nn.CrossEntropyLoss()
         #optimizer = torch.optim.Adam(model.parameters())
         optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
@@ -165,13 +167,13 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
     for i, (input, target) in enumerate(data):
 
         input = preprocessing(input)
-        input = input.cuda()
-        target = target.cuda()
+        input = input.to(device)
+        target = target.to(device)
 
        # with torch.no_grad():
 
         # forward
-        output = model(input)
+        output = model(input).to(device)
         loss = criterion(output, target)
 
         # backward si on est en "train"
@@ -198,12 +200,12 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
                 print('[{0:s} Batch {1:03d}/{2:03d}]\t'
                       'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t'
                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Prec {top1.val:5.1f} ({top1.avg:5.1f})\n'.format(
+                      'Prec {top1.val:5.4f} ({top1.avg:5.4f})\n'.format(
                        "EVAL" if optimizer is None else "TRAIN", i, len(data), batch_time=avg_batch_time, loss=avg_loss,
                        top1=avg_acc))
 
             # Affichage des infos sur l'epoch
-            print('\n===============> Total time {batch_time:d}s\t'
+    print('\n===============> Total time {batch_time:d}s\t'
               'Avg loss {loss.avg:.4f}\t'
               'Avg Prec {top1.avg:5.2f} %\n'.format(
                batch_time=int(avg_batch_time.sum), loss=avg_loss,
