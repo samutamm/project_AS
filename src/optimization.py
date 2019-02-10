@@ -53,6 +53,7 @@ class MeanEvaluator:
             self.pruning_data_loader, self.train_data_loader, self.test_data_loader = get_dataloaders(dataset, path)
 
         self.sleep_between_iterations = True
+        self.skip_test_evaluation = False
 
 
     def create_pruning_model(self):
@@ -65,13 +66,13 @@ class MeanEvaluator:
 
     def snip_training(self):
         prune_model, snip = self.create_pruning_model()  # create new instance to reset the training
-        _, test_losses, accuracys = self.train_model(prune_model, snip)
-        return test_losses, accuracys
+        train_losses, test_losses, accuracys = self.train_model(prune_model, snip)
+        return train_losses, test_losses, accuracys
 
     def baseline_training(self):
         model = self.model_class()  # create new instance to reset the training
-        _, test_losses, accuracys = self.train_model(model, None)
-        return test_losses, accuracys
+        train_losses, test_losses, accuracys = self.train_model(model, None)
+        return train_losses, test_losses, accuracys
 
     def evaluate_baseline(self):
         return self.repeat_training(self.baseline_training)
@@ -83,7 +84,7 @@ class MeanEvaluator:
         accuracy_results = []
         loss_results = []
         for i in range(self.eval_n):
-            test_losses, accuracys = training_to_repeat()
+            _, test_losses, accuracys = training_to_repeat()
             score = np.max(accuracys)
             min_loss = np.min(test_losses)
             print("test : {}, score : {}, min test loss : {}".format(i, score, min_loss))
@@ -123,16 +124,18 @@ class MeanEvaluator:
                             scheduler=scheduler,
                             optimizer=optimizer,
                             PRINT_INTERVAL = -1)
-            # Phase d'evaluation
-            with torch.no_grad():
-                acc_test, loss_test = epoch(self.test_data_loader,
-                                            model,
-                                            criterion,
-                                            PRINT_INTERVAL = -1)
-
             train_losses.append(loss.avg)
-            test_losses.append(loss_test.avg)
-            accuracys.append(acc_test.avg)
+            # Phase d'evaluation
+            if not self.skip_test_evaluation:
+                with torch.no_grad():
+                    acc_test, loss_test = epoch(self.test_data_loader,
+                                                model,
+                                                criterion,
+                                                PRINT_INTERVAL = -1)
+
+
+                test_losses.append(loss_test.avg)
+                accuracys.append(acc_test.avg)
 
         if snip:
             for hook in hooks:
