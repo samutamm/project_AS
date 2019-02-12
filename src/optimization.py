@@ -207,7 +207,7 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
             # Affichage des infos sur l'epoch
     print('\n===============> Total time {batch_time:d}s\t'
               'Avg loss {loss.avg:.4f}\t'
-              'Avg Prec {top1.avg:5.2f} %\n'.format(
+              'Avg Prec {top1.avg:5.5f} \n'.format(
                batch_time=int(avg_batch_time.sum), loss=avg_loss,
                top1=avg_acc))
 

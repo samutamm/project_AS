@@ -18,7 +18,7 @@ class SNIP:
         """
         :param model:
         """
-        self.model = model
+        self.model = model.cuda()
         self.C_masks = {}
 
         self.model.apply(weights_init_uniform)  # algorithm line 1
@@ -61,11 +61,15 @@ class SNIP:
 
         X, y = next(iter(data_loader))
 
+        # RNN-MNIST
+        # sequence_length = 28
+        # input_size = 28
+        # X = X.reshape(-1, sequence_length, input_size).cuda()
         criterion = nn.CrossEntropyLoss()
 
         # maybe use the same optimiser than in normal learning process later
-        output = self.model(X)
-        loss = criterion(output, y)
+        output = self.model(X.cuda())
+        loss = criterion(output, y.cuda())
         loss.backward()
 
         g, gradient_mapping = self.get_all_gradients()
@@ -129,8 +133,8 @@ class SNIP:
         for i, param in enumerate(self.model.parameters()):
             if param.requires_grad:
                 dimensions = list(param.grad.shape)
-                params_vector = param.data.numpy().flatten()
-                params_grad_vector = param.grad.data.numpy().flatten()
+                params_vector = param.data.cpu().numpy().flatten()
+                params_grad_vector = param.grad.data.cpu().numpy().flatten()
                 param_indexes = np.arange(params_vector.shape[0])
                 params.append(np.multiply(params_vector, params_grad_vector))
                 for local_idx, _ in enumerate(param_indexes):
