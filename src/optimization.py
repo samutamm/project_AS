@@ -7,8 +7,9 @@ import numpy as np
 
 import torchvision.transforms as transforms
 
-from .tools import AverageMeter
+from tools import AverageMeter
 from time import sleep
+from Snip_copy import SNIP
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -48,9 +49,11 @@ class MeanEvaluator:
         self.eval_n = eval_n
         self.pruning_ratio = pruning_ratio
         self.epochs = epochs
-        self.pruning_data_loader, self.train_data_loader, self.test_data_loader = get_dataloaders(dataset, path)
+        if dataset:
+            self.pruning_data_loader, self.train_data_loader, self.test_data_loader = get_dataloaders(dataset, path)
 
         self.sleep_between_iterations = True
+        self.skip_test_evaluation = False
 
 
     def create_pruning_model(self):
@@ -63,13 +66,13 @@ class MeanEvaluator:
 
     def snip_training(self):
         prune_model, snip = self.create_pruning_model()  # create new instance to reset the training
-        _, test_losses, accuracys = self.train_model(prune_model, snip)
-        return test_losses, accuracys
+        train_losses, test_losses, accuracys = self.train_model(prune_model, snip)
+        return train_losses, test_losses, accuracys
 
     def baseline_training(self):
         model = self.model_class()  # create new instance to reset the training
-        _, test_losses, accuracys = self.train_model(model, None)
-        return test_losses, accuracys
+        train_losses, test_losses, accuracys = self.train_model(model, None)
+        return train_losses, test_losses, accuracys
 
     def evaluate_baseline(self):
         return self.repeat_training(self.baseline_training)
@@ -81,7 +84,7 @@ class MeanEvaluator:
         accuracy_results = []
         loss_results = []
         for i in range(self.eval_n):
-            test_losses, accuracys = training_to_repeat()
+            _, test_losses, accuracys = training_to_repeat()
             score = np.max(accuracys)
             min_loss = np.min(test_losses)
             print("test : {}, score : {}, min test loss : {}".format(i, score, min_loss))
@@ -94,10 +97,10 @@ class MeanEvaluator:
         return np.mean(accuracy_results), np.mean(loss_results)
 
 
-    def train_model(self, model, snip=None, epochs=10):
+    def train_model(self, model, snip=None):
         criterion = nn.CrossEntropyLoss()
         #optimizer = torch.optim.Adam(model.parameters())
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=0.0005)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25000, gamma=0.1)
 
         model = model.cuda()
@@ -121,16 +124,18 @@ class MeanEvaluator:
                             scheduler=scheduler,
                             optimizer=optimizer,
                             PRINT_INTERVAL = -1)
-            # Phase d'evaluation
-            with torch.no_grad():
-                acc_test, loss_test = epoch(self.test_data_loader,
-                                            model,
-                                            criterion,
-                                            PRINT_INTERVAL = -1)
-
             train_losses.append(loss.avg)
-            test_losses.append(loss_test.avg)
-            accuracys.append(acc_test.avg)
+            # Phase d'evaluation
+            if not self.skip_test_evaluation:
+                with torch.no_grad():
+                    acc_test, loss_test = epoch(self.test_data_loader,
+                                                model,
+                                                criterion,
+                                                PRINT_INTERVAL = -1)
+
+
+                test_losses.append(loss_test.avg)
+                accuracys.append(acc_test.avg)
 
         if snip:
             for hook in hooks:
@@ -178,8 +183,7 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
 
         # backward si on est en "train"
         if optimizer:
-            #snip_pruning.prune_parameters()
-            #scheduler.step();
+            scheduler.step()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -204,11 +208,21 @@ def epoch(data, model, criterion, preprocessing = lambda x : x,
                        "EVAL" if optimizer is None else "TRAIN", i, len(data), batch_time=avg_batch_time, loss=avg_loss,
                        top1=avg_acc))
 
+<<<<<<< HEAD
             # Affichage des infos sur l'epoch
     print('\n===============> Total time {batch_time:d}s\t'
               'Avg loss {loss.avg:.4f}\t'
               'Avg Prec {top1.avg:5.5f} \n'.format(
                batch_time=int(avg_batch_time.sum), loss=avg_loss,
                top1=avg_acc))
+=======
+    if PRINT_INTERVAL != -1:
+                # Affichage des infos sur l'epoch
+        print('\n===============> Total time {batch_time:d}s\t'
+                  'Avg loss {loss.avg:.4f}\t'
+                  'Avg Prec {top1.avg:5.2f} %\n'.format(
+                   batch_time=int(avg_batch_time.sum), loss=avg_loss,
+                   top1=avg_acc))
+>>>>>>> 9ab96df90970b55887ba7cb0952a26b20147795d
 
     return avg_acc, avg_loss

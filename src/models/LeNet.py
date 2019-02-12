@@ -9,7 +9,7 @@ class LeNet5Caffe(nn.Module):
     C1 - 6@28x28 (5x5 kernel)
     tanh
     S2 - 6@14x14 (2x2 kernel, stride 2) Subsampling
-    C3 - 16@10x10 (5x5 kernel, complicated shit)
+    C3 - 16@10x10 (5x5 kernel)
     tanh
     S4 - 16@5x5 (2x2 kernel, stride 2) Subsampling
     C5 - 120@1x1 (5x5 kernel)
